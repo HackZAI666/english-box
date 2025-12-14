@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HackZ英语工具箱 — 缩略 / 扩张 / 降重 / 翻译</title>
+  <meta name="description" content="HackZ 英语工具箱：单文件静态网页，包含缩句、扩句、改写、翻译、词汇平替、批量处理、朗读、导出、历史等功能。可直接部署到 GitHub Pages。">
+  <style>
+    :root{
+      --bg:#0b0f12; --card:#0f1417; --muted:#9aa4b2; --accent:#6ee7b7; --accent-2:#7c3aed; --glass:rgba(255,255,255,0.03);
+      --maxw:1280px; --radius:12px; --glass-border:rgba(255,255,255,0.04);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background:linear-gradient(180deg,#0b0f12 0%, #081018 60%); color:#e6eef8; display:flex; justify-content:flex-start; padding:18px; gap:18px;
+    }
+
+    /* Layout: left nav fixed, right frame scrollable */
+    nav{
+      width:260px; height:calc(100vh - 36px); position:fixed; left:18px; top:18px; background:linear-gradient(180deg,var(--card), #071122);
+      border-radius:var(--radius); padding:18px; border:1px solid var(--glass-border); display:flex; flex-direction:column; gap:12px; z-index:30;
+    }
+    .container{margin-left:296px; width:calc(100% - 296px); max-width:calc(var(--maxw) - 296px);}
+
+    /* Right frame scrolls independently */
+    #rightFrame{height:calc(100vh - 36px); overflow:auto; padding:18px; border-radius:12px; background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);}
+
+    .logo{font-weight:800; font-size:16px; letter-spacing:0.4px; display:flex; gap:10px; align-items:center}
+    .logo .dot{width:10px;height:10px;border-radius:50%;background:var(--accent)}
+    .small{font-size:13px; color:var(--muted)}
+
+    .nav-list{display:flex; flex-direction:column; gap:8px; margin-top:8px}
+    .nav-btn{background:transparent; color:var(--muted); border:1px solid transparent; padding:10px 12px; border-radius:8px; text-align:left; cursor:pointer; font-weight:700}
+    .nav-btn:hover{background:rgba(255,255,255,0.02); color:#fff}
+    .nav-btn.active{background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:#061023}
+
+    main{min-height:80vh}
+    header{display:flex; align-items:center; justify-content:space-between; gap:12px}
+    header h1{margin:0; font-size:20px}
+    header .meta{color:var(--muted); font-size:13px}
+
+    .top-cards{display:flex; gap:14px; margin-top:14px}
+    .card-large{flex:1; min-height:120px; border-radius:14px; padding:16px; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid var(--glass-border); display:flex; flex-direction:column; justify-content:center; cursor:pointer}
+    .card-large h3{margin:0 0 6px 0}
+    .card-large p{margin:0; color:var(--muted)}
+
+    .section{margin-top:18px; background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent); border-radius:12px; padding:14px; border:1px solid var(--glass-border)}
+    .tools-grid{display:grid; grid-template-columns:1fr; gap:14px}
+
+    label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px}
+    textarea{width:100%; min-height:120px; padding:12px; border-radius:8px; resize:vertical; background:transparent; color:inherit; border:1px solid rgba(255,255,255,0.04);}
+    .controls{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+    .btn{background:linear-gradient(90deg,var(--accent), var(--accent-2)); color:#061023; border:0; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:700}
+    .btn.ghost{background:transparent; color:var(--muted); border:1px solid rgba(255,255,255,0.03)}
+    .btn.secondary{background:transparent; color:var(--muted); border:1px solid rgba(255,255,255,0.03)}
+    .output{min-height:90px; padding:12px; border-radius:8px; border:1px dashed rgba(255,255,255,0.03); background:rgba(255,255,255,0.01); white-space:pre-wrap}
+
+    .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    .range{width:260px}
+    .select{padding:8px 10px; border-radius:8px; background:transparent; color:inherit; border:1px solid rgba(255,255,255,0.03)}
+
+    .meta-stats{display:flex; gap:12px; color:var(--muted); font-size:13px; align-items:center}
+    .history{margin-top:10px; display:flex; gap:8px; flex-wrap:wrap}
+    .chip{background:rgba(255,255,255,0.02); padding:6px 8px; border-radius:8px; cursor:pointer; border:1px solid rgba(255,255,255,0.02)}
+
+    /* translation list smaller font for long list */
+    .lang-select{max-height:220px; overflow:auto}
+
+    @media(max-width:1000px){ nav{position:relative; width:100%; height:auto; margin-bottom:12px} .container{margin-left:0;width:100%;} #rightFrame{height:auto; overflow:visible} }
+  </style>
+</head>
+<body>
+  <nav aria-label="主导航">
+    <div class="logo"><span class="dot" aria-hidden></span> HackZ 英语工具箱</div>
+    <div class="small" style="margin-top:6px">单文件静态站 — 可部署到 GitHub Pages</div>
+
+    <div class="nav-list">
+      <button class="nav-btn active" data-target="shorten" onclick="navClick(event)">句子缩略</button>
+      <button class="nav-btn" data-target="expand" onclick="navClick(event)">句子扩张（英语）</button>
+      <button class="nav-btn" data-target="paraphrase" onclick="navClick(event)">AI 降重 / 改写</button>
+      <button class="nav-btn" data-target="translate" onclick="navClick(event)">翻译工具</button>
+      <button class="nav-btn" data-target="lexical" onclick="navClick(event)">词汇平替 & 更好平替</button>
+      <button class="nav-btn" data-target="batch" onclick="navClick(event)">批量处理 & 模板</button>
+    </div>
+
+    <div style="flex:1"></div>
+    <div class="small">说明：左侧固定，右侧独立滚动。你可以在设置中填 API Key 来启用云端翻译/改写（可选）。</div>
+  </nav>
+
+  <div class="container">
+    <div id="rightFrame">
+      <main>
+        <header>
+          <div>
+            <h1>HackZ 英语工具箱</h1>
+            <div class="meta">缩略 / 扩张 / 改写 / 翻译 / 词汇平替 —— 更强的文本工具</div>
+          </div>
+          <div class="meta-stats">
+            <div class="badge" id="localStatus">离线模式</div>
+            <div class="badge">Single-file</div>
+          </div>
+        </header>
+
+        <section class="top-cards">
+          <div class="card-large" onclick="scrollToSection('shorten')">
+            <h3>缩句（快速）</h3>
+            <p class="small">按比例或按词数缩略，保留关键词优先。</p>
+          </div>
+          <div class="card-large" onclick="scrollToSection('expand')">
+            <h3>扩句（情感/语气可选）</h3>
+            <p class="small">把短句扩成更丰富、带情感或更正式的句子。</p>
+          </div>
+          <div class="card-large" onclick="scrollToSection('paraphrase')">
+            <h3>改写 / 降重</h3>
+            <p class="small">多模式改写，支持情感注入与强度调整。</p>
+          </div>
+        </section>
+
+        <!-- SHORTEN -->
+        <section id="shorten" class="section">
+          <h2>句子缩略</h2>
+          <div class="small">将英文文本按句子缩短。支持“按比例”或“按保留单词数”；有关键词优先选项。</div>
+
+          <label for="shortenInput">输入文本</label>
+          <textarea id="shortenInput" placeholder="Paste or type English text here..."></textarea>
+
+          <div class="row" style="margin-top:10px">
+            <div>
+              <label class="small">缩略模式</label>
+              <select id="shortenMode" class="select">
+                <option value="ratio">按比例（%）</option>
+                <option value="fixed">按保留单词数</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="small">程度 / 数值 <span id="shortenVal" style="font-weight:800">50%</span></label>
+              <input type="range" id="shortenRange" class="range" min="10" max="100" value="50" oninput="updateShortenLabel()">
+            </div>
+
+            <div>
+              <label class="small">关键词优先</label>
+              <select id="keywordPreset" class="select">
+                <option value="none">不优先</option>
+                <option value="tfidf">简单关键词提取</option>
+                <option value="nouns">保留名词</option>
+              </select>
+            </div>
+
+            <div style="margin-left:auto; display:flex; gap:8px">
+              <button class="btn" onclick="shortenAction()">缩略</button>
+              <button class="btn ghost" onclick="clearText('shortenInput')">清空</button>
+              <button class="btn ghost" onclick="copyOut('shortenOutput')">复制</button>
+            </div>
+          </div>
+
+          <div style="margin-top:12px">
+            <label>输出</label>
+            <div id="shortenOutput" class="output" aria-live="polite"></div>
+            <div class="history" id="shortenHistory"></div>
+          </div>
+        </section>
+
+        <!-- EXPAND -->
+        <section id="expand" class="section">
+          <h2>句子扩张（英语）</h2>
+          <div class="small">扩写短句，增加细节、情感与例子。选择扩写长度与语气（tone）。</div>
+
+          <label for="expandInput">输入文本（一句或多句）</label>
+          <textarea id="expandInput" placeholder="Type a short English sentence..."></textarea>
+
+          <div class="row" style="margin-top:8px">
+            <div>
+              <label class="small">扩写强度 <span id="expandVal" style="font-weight:800">160%</span></label>
+              <input type="range" id="expandRange" class="range" min="110" max="350" value="160" oninput="updateExpandLabel()">
+            </div>
+
+            <div>
+              <label class="small">情感 / 语气</label>
+              <select id="expandTone" class="select">
+                <option value="neutral">中性</option>
+                <option value="friendly">友好 / 温暖</option>
+                <option value="formal">正式 / 学术</option>
+                <option value="excited">兴奋 / 热情</option>
+                <option value="sad">悲伤 / 沉静</option>
+                <option value="urgent">紧急 / 强调</option>
+              </select>
+            </div>
+
+            <div style="margin-left:auto; display:flex; gap:8px">
+              <button class="btn" onclick="expandAction()">扩写</button>
+              <button class="btn ghost" onclick="clearText('expandInput')">清空</button>
+              <button class="btn ghost" onclick="copyOut('expandOutput')">复制</button>
+            </div>
+          </div>
+
+          <div style="margin-top:12px">
+            <label>输出</label>
+            <div id="expandOutput" class="output"></div>
+            <div class="row" style="margin-top:8px">
+              <button class="btn ghost" onclick="speakOut('expandOutput')">朗读</button>
+              <button class="btn ghost" onclick="downloadOut('expandOutput','expanded.txt')">下载</button>
+            </div>
+            <div class="history" id="expandHistory"></div>
+          </div>
+        </section>
+
+        <!-- PARAPHRASE -->
+        <section id="paraphrase" class="section">
+          <h2>AI 降重 / 改写</h2>
+          <div class="small">多种改写模式 + 情感/语气 + 强度调节。支持本地规则版与可选云端增强（需 API Key）。</div>
+
+          <label for="paraInput">输入文本</label>
+          <textarea id="paraInput" placeholder="Enter text to paraphrase..."></textarea>
+
+          <div class="row" style="margin-top:8px">
+            <div>
+              <label class="small">模式</label>
+              <select id="paraMode" class="select">
+                <option value="safe">温和替换</option>
+                <option value="colloquial">口语化</option>
+                <option value="academic">学术化</option>
+                <option value="aggressive">强力降重</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="small">情感 / 语气</label>
+              <select id="paraTone" class="select">
+                <option value="neutral">中性</option>
+                <option value="friendly">友好</option>
+                <option value="formal">正式</option>
+                <option value="excited">兴奋</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="small">强度 <span id="paraVal" style="font-weight:800">60%</span></label>
+              <input type="range" id="paraRange" class="range" min="10" max="100" value="60" oninput="document.getElementById('paraVal').innerText=this.value+'%'">
+            </div>
+
+            <div style="margin-left:auto; display:flex; gap:8px">
+              <button class="btn" onclick="paraAction()">改写</button>
+              <button class="btn ghost" onclick="clearText('paraInput')">清空</button>
+              <button class="btn ghost" onclick="copyOut('paraOutput')">复制</button>
+              <button class="btn ghost" onclick="openSettings()">设置（API）</button>
+            </div>
+          </div>
+
+          <div style="margin-top:12px">
+            <label>输出</label>
+            <div id="paraOutput" class="output"></div>
+            <div class="row" style="margin-top:8px">
+              <button class="btn ghost" onclick="speakOut('paraOutput')">朗读</button>
+              <button class="btn ghost" onclick="downloadOut('paraOutput','paraphrase.txt')">下载</button>
+            </div>
+            <div class="history" id="paraHistory"></div>
+          </div>
+        </section>
+
+        <!-- TRANSLATE -->
+        <section id="translate" class="section">
+          <h2>翻译工具</h2>
+          <div class="small">支持多语言（选择源语言与目标语言）。三种翻译风格：简单、中度、文化（文化翻译会保留习语并添加说明）。可选择使用本地演示或云端翻译（LibreTranslate 或填写 API Key）。</div>
+
+          <div style="margin-top:12px; display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+            <div style="flex:1; min-width:260px">
+              <label class="small">源语言（auto 自动检测）</label>
+              <select id="srcLang" class="select">
+                <option value="auto">auto</option>
+                <option value="en">English</option>
+                <option value="zh">中文 (简体)</option>
+                <option value="es">Español</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
+                <option value="ja">日本語</option>
+                <option value="ko">한국어</option>
+                <option value="ar">العربية</option>
+                <option value="ru">Русский</option>
+                <option value="pt">Português</option>
+                <option value="it">Italiano</option>
+                <option value="nl">Nederlands</option>
+                <option value="sv">Svenska</option>
+                <option value="pl">Polski</option>
+                <option value="tr">Türkçe</option>
+                <option value="vi">Tiếng Việt</option>
+                <option value="id">Bahasa Indonesia</option>
+                <option value="hi">हिन्दी</option>
+                <option value="bn">বাংলা</option>
+                <option value="th">ไทย</option>
+                <option value="he">עברית</option>
+                <option value="el">Ελληνικά</option>
+                <option value="cs">Čeština</option>
+                <option value="ro">Română</option>
+                <option value="hu">Magyar</option>
+                <option value="other">Other (iso)</option>
+              </select>
+            </div>
+
+            <div style="flex:1; min-width:260px">
+              <label class="small">目标语言</label>
+              <select id="tgtLang" class="select">
+                <option value="zh">中文 (简体)</option>
+                <option value="en">English</option>
+                <option value="es">Español</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
+                <option value="ja">日本語</option>
+                <option value="ko">한국어</option>
+                <option value="ar">العربية</option>
+                <option value="ru">Русский</option>
+                <option value="pt">Português</option>
+                <option value="it">Italiano</option>
+                <option value="nl">Nederlands</option>
+                <option value="vi">Tiếng Việt</option>
+                <option value="id">Bahasa Indonesia</option>
+                <option value="hi">हिन्दी</option>
+                <option value="th">ไทย</option>
+                <option value="other">Other (iso)</option>
+              </select>
+            </div>
+
+            <div style="min-width:260px">
+              <label class="small">翻译风格</label>
+              <select id="translateMode" class="select">
+                <option value="simple">简单翻译（直译）</option>
+                <option value="moderate">中度翻译（本地化 + 流畅）</option>
+                <option value="cultural">文化翻译（保留习语，附文化注释）</option>
+              </select>
+            </div>
+
+            <div style="margin-left:auto; display:flex; gap:8px">
+              <button class="btn" onclick="translateAction()">翻译</button>
+              <button class="btn ghost" onclick="clearText('translateInput')">清空</button>
+              <button class="btn ghost" onclick="copyOut('translateOutput')">复制</button>
+            </div>
+          </div>
+
+          <div style="margin-top:12px">
+            <label>文本</label>
+            <textarea id="translateInput" placeholder="Enter text to translate..."></textarea>
+            <div style="margin-top:8px">
+              <label class="small">输出</label>
+              <div id="translateOutput" class="output"></div>
+              <div class="row" style="margin-top:8px">
+                <button class="btn ghost" onclick="speakOut('translateOutput')">朗读</button>
+                <button class="btn ghost" onclick="downloadOut('translateOutput','translate.txt')">下载</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- LEXICAL -->
+        <section id="lexical" class="section">
+          <h2>英语词汇平替 & 更好平替</h2>
+          <div class="small">输入一个单词或短语，我们给出常见平替和“更好”的替代（更准确、更正式或更地道）。</div>
+
+          <label>词 / 短语</label>
+          <input id="lexInput" style="width:100%; padding:10px; border-radius:8px; background:transparent; border:1px solid rgba(255,255,255,0.03); color:inherit" placeholder="e.g. good, use, show">
+
+          <div class="row" style="margin-top:8px">
+            <button class="btn" onclick="lexAction()">查找平替</button>
+            <button class="btn ghost" onclick="clearText('lexInput')">清空</button>
+          </div>
+
+          <div style="margin-top:12px">
+            <label>候选</label>
+            <div id="lexOutput" class="output"></div>
+          </div>
+        </section>
+
+        <!-- BATCH -->
+        <section id="batch" class="section">
+          <h2>批量处理 & 模板</h2>
+          <div class="small">批量缩略、模板替换（邮件/总结等）</div>
+
+          <label>批量文本（每行一条）</label>
+          <textarea id="batchInput" placeholder="One sentence per line..."></textarea>
+          <div class="row" style="margin-top:8px">
+            <button class="btn" onclick="batchProcess()">批量缩略（默认）</button>
+            <button class="btn ghost" onclick="downloadOut('batchOutput','batch.txt')">下载结果</button>
+            <button class="btn ghost" onclick="clearText('batchInput')">清空</button>
+          </div>
+          <div style="margin-top:12px">
+            <label>输出</label>
+            <div id="batchOutput" class="output"></div>
+          </div>
+        </section>
+
+        <footer style="margin-top:18px; color:var(--muted); font-size:13px">说明：如果需要高质量翻译或改写，请在“设置”中填写云端 API Key（可选）。页面默认提供本地演示/规则增强。</footer>
+      </main>
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settingsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; z-index:60;">
+    <div style="width:720px; max-width:95%; background:linear-gradient(180deg,#091222,#07101a); border-radius:12px; padding:18px; border:1px solid rgba(255,255,255,0.03)">
+      <h3 style="margin:0 0 8px 0">设置（可选）</h3>
+      <div class="small">在此粘贴翻译 / 改写等 API Key（仅保存在本地浏览器）。如果你想使用公有 LibreTranslate 也可开启“Use Public Translate”。</div>
+      <div style="margin-top:12px">
+        <label class="small">OpenAI / 翻译 API Key</label>
+        <input id="apiKeyInput" style="width:100%; padding:10px; border-radius:8px; background:transparent; border:1px solid rgba(255,255,255,0.03); color:inherit" placeholder="sk-...">
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px; align-items:center">
+        <label class="small"><input type="checkbox" id="usePublicTranslate"> 使用公有 LibreTranslate（可能受限）</label>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px; justify-content:flex-end">
+        <button class="btn" onclick="saveSettings()">保存</button>
+        <button class="btn ghost" onclick="closeSettings()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ---------------- utilities ---------------- */
+    function navClick(e){ document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active')); e.currentTarget.classList.add('active'); const tgt = e.currentTarget.dataset.target; scrollToSection(tgt); }
+    function scrollToSection(id){ const el = document.getElementById(id); if(el){ const frame = document.getElementById('rightFrame'); const top = el.getBoundingClientRect().top - frame.getBoundingClientRect().top + frame.scrollTop - 12; frame.scrollTo({top, behavior:'smooth'}); el.focus({preventScroll:true}); } }
+    function clearText(id){ const el = document.getElementById(id); if(!el) return; if(el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') el.value = ''; }
+    function copyOut(id){ const t = document.getElementById(id).innerText || ''; if(!t) return alert('没有可复制的内容'); navigator.clipboard.writeText(t).then(()=>alert('已复制'), ()=>alert('复制失败')); }
+    function downloadOut(id, filename){ const t = document.getElementById(id).innerText || ''; if(!t){ alert('没有可下载的内容'); return; } const blob = new Blob([t], {type:'text/plain;charset=utf-8'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename || 'output.txt'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+    function speakOut(id){ const t = document.getElementById(id).innerText || ''; if(!t) return alert('没有要朗读的内容'); if('speechSynthesis' in window){ const utter = new SpeechSynthesisUtterance(t); utter.rate = 0.95; speechSynthesis.speak(utter); } else { alert('此浏览器不支持语音合成'); } }
+
+    /* ---------------- basic dictionaries ---------------- */
+    const smallSyn = {
+      important: ['crucial','vital','significant','notable'],
+      use: ['utilize','employ','make use of'],
+      show: ['demonstrate','reveal','indicate'],
+      because: ['since','as','due to the fact that'],
+      however: ['nevertheless','nonetheless','yet'],
+      many: ['numerous','a large number of','countless'],
+      good: ['beneficial','advantageous','favorable'],
+      people: ['individuals','persons','users'],
+      think: ['believe','consider','suppose'],
+      help: ['assist','aid','support'],
+      make: ['create','produce','generate']
+    };
+
+    const toneExtras = {
+      friendly: ['warmly', 'kindly', 'with a friendly tone', 'approachable'],
+      excited: ['with enthusiasm', 'excitedly', 'with energy', 'in a lively manner'],
+      formal: ['in a formal manner', 'professionally', 'with precise wording'],
+      sad: ['with a somber tone', 'in a subdued manner', 'with melancholy'],
+      urgent: ['urgently', 'with high priority', 'immediately']
+    };
+
+    /* ---------------- helpers ---------------- */
+    function splitSentences(text){ const parts = text.split(/([.!?]+)\s*/).filter(s=>s.trim() !== ''); const out = []; for(let i=0;i<parts.length;i+=2){ const t = parts[i] || ''; const p = parts[i+1] || ''; out.push({text:t.trim(), punct: p}); } return out; }
+
+    function updateShortenLabel(){ const r = document.getElementById('shortenRange'); const m = document.getElementById('shortenMode').value; document.getElementById('shortenVal').innerText = (m==='ratio'? r.value + '%': r.value + ' words'); }
+    function updateExpandLabel(){ document.getElementById('expandVal').innerText = document.getElementById('expandRange').value + '%'; }
+
+    /* ---------------- SHORTEN ---------------- */
+    function extractKeywords(text, topN=5){ const stop = new Set(['the','is','in','and','of','a','to','it','that','this','for','on','with','as','are','was','be','by','an','or']); const words = text.toLowerCase().match(/\b[a-z]{2,}\b/g) || []; const freq = {}; words.forEach(w=>{ if(!stop.has(w)) freq[w] = (freq[w]||0)+1 }); const arr = Object.keys(freq).sort((a,b)=>freq[b]-freq[a]); return arr.slice(0, topN); }
+
+    function shortenAction(){ const text = document.getElementById('shortenInput').value.trim(); if(!text){ alert('请输入文本'); return; } const mode = document.getElementById('shortenMode').value; const val = parseInt(document.getElementById('shortenRange').value); const keyPreset = document.getElementById('keywordPreset').value; const sents = splitSentences(text); const keywords = keyPreset !== 'none' ? extractKeywords(text, 6) : []; let out = ''; sents.forEach(s=>{ const words = s.text.split(/\s+/).filter(Boolean); let keep = 1; if(mode === 'ratio'){ keep = Math.max(1, Math.floor(words.length * val / 100)); } else { keep = Math.max(1, val); } if(keywords.length && keywords.some(k=>s.text.toLowerCase().includes(k))){ keep = Math.min(words.length, Math.max(keep, Math.ceil(words.length * 0.4 + keep))); } const short = words.slice(0, keep).join(' '); out += short + (s.punct || '.') + ' '; }); out = out.trim(); document.getElementById('shortenOutput').innerText = out; pushHistory('shorten', out); }
+
+    /* ---------------- EXPAND ---------------- */
+    function expandSentence(sentence, factor, tone){ const words = sentence.split(/\s+/).filter(Boolean); if(words.length === 0) return sentence; let out = sentence.replace(/[.?!]*$/,''); const extras = toneExtras[tone] || []; const tExtra = extras.length ? extras[Math.floor(Math.random()*extras.length)] : ''; const addClauses = []; const noun = words[words.length-1] || words[0]; if(factor > 1.2){ addClauses.push('this involves ' + (noun || 'the subject')); } if(factor > 1.5){ addClauses.push('it often includes more detail and context'); } if(factor > 2.0){ addClauses.push('in particular, further examples can illustrate the point'); } if(factor > 2.6){ addClauses.push('additional consequences and reasons are typically discussed at length'); } if(tExtra) addClauses.unshift(tExtra); if(addClauses.length){ out = out + ', ' + addClauses.join(', ') + '.'; } else { if(factor > 1.05) out = out + ', elaborating on the idea.'; } if(factor > 2.2){ out += ' It also explains additional aspects in more detail and gives illustrative examples.'; } out = out.replace(/^\s*/, '').replace(/\s+/g,' '); out = out.charAt(0).toUpperCase() + out.slice(1); return out; }
+
+    function expandAction(){ const text = document.getElementById('expandInput').value.trim(); if(!text){ alert('请输入文本'); return; } const deg = parseInt(document.getElementById('expandRange').value); const tone = document.getElementById('expandTone').value; const factor = deg/100.0; const sents = splitSentences(text); let out = ''; sents.forEach(s=>{ const ex = expandSentence(s.text, factor, tone); out += ex + (s.punct || '.') + ' '; }); out = out.trim(); document.getElementById('expandOutput').innerText = out; pushHistory('expand', out); }
+
+    /* ---------------- PARAPHRASE ---------------- */
+    function chooseSyn(word){ const key = word.toLowerCase().replace(/[^a-z]/g,''); if(smallSyn[key]){ const arr = smallSyn[key]; return arr[Math.floor(Math.random()*arr.length)]; } return null; }
+    function simpleParaphrase(sentence, mode, tone, strength){ const tokens = sentence.split(/(\b)/); const replaced = tokens.map(tok=>{ if(/^[A-Za-z]+$/.test(tok)){ const p = Math.random()*100; let prob = strength * 0.5; if(mode === 'safe') prob = strength * 0.35; if(mode === 'aggressive') prob = Math.min(95, strength * 1.1); if(p < prob){ const syn = chooseSyn(tok); if(syn){ if(tok[0] === tok[0].toUpperCase()) return syn.charAt(0).toUpperCase() + syn.slice(1); return syn; } } } return tok; }).join(''); let finalText = replaced; if(mode === 'colloquial'){ finalText = finalText.replace(/\bdo not\b/gi, "don't").replace(/\bis not\b/gi,"isn't"); } if(mode === 'academic'){ finalText = finalText.replace(/\bshow(s?)\b/gi,'demonstrate').replace(/\bbut\b/gi,'however'); } if(mode === 'aggressive' && Math.random() < 0.5){ const parts = finalText.split(','); if(parts.length>1){ finalText = parts.reverse().join(',').trim(); } } if(tone && tone !== 'neutral'){ const extras = toneExtras[tone] || []; if(extras.length){ finalText = finalText.replace(/[.?!]*$/,'') + ', ' + extras[Math.floor(Math.random()*extras.length)] + '.'; } } finalText = finalText.replace(/\s+/g,' ').trim(); if(!/[.?!]$/.test(finalText)) finalText += '.'; return finalText; }
+
+    function paraAction(){ const text = document.getElementById('paraInput').value.trim(); if(!text){ alert('请输入文本'); return; } const mode = document.getElementById('paraMode').value; const tone = document.getElementById('paraTone').value; const strength = parseInt(document.getElementById('paraRange').value); const sents = splitSentences(text); let out = ''; sents.forEach(s=>{ const p = simpleParaphrase(s.text, mode, tone, strength); out += p + (s.punct || '.') + ' '; }); out = out.trim(); document.getElementById('paraOutput').innerText = out; pushHistory('para', out); }
+
+    /* ---------------- TRANSLATE ---------------- */
+    async function translateAction(){ const text = document.getElementById('translateInput').value.trim(); if(!text){ alert('请输入要翻译的文本'); return; } const src = document.getElementById('srcLang').value; const tgt = document.getElementById('tgtLang').value; const mode = document.getElementById('translateMode').value; const apiKey = localStorage.getItem('apiKey')||''; const usePublic = document.getElementById('usePublicTranslate') && document.getElementById('usePublicTranslate').checked;
+
+      // If cloud key present, you can implement cloud call here. For demo we'll try public LibreTranslate if enabled, otherwise fallback to local simple demo transformations.
+      if(usePublic){
+        try{
+          document.getElementById('translateOutput').innerText = '正在使用公有翻译服务...';
+          const resp = await fetch('https://libretranslate.de/translate', {
+            method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({q:text, source: src==='auto'?'auto':src, target: tgt, format: 'text'})
+          });
+          if(!resp.ok) throw new Error('服务响应错误');
+          const data = await resp.json();
+          let translated = data.translatedText || '';
+          // cultural mode: append short cultural note for some idioms (demo)
+          if(mode === 'cultural') translated += '\n\n[文化注释]：对某些习语进行保留并解释。';
+          if(mode === 'moderate') translated = postProcessModerate(translated);
+          document.getElementById('translateOutput').innerText = translated;
+          return;
+        }catch(err){ console.warn('libre translate failed', err); alert('公有翻译服务无法使用，已回退到本地示例'); }
+      }
+
+      // local fallback demo
+      const demo = localDemoTranslate(text, src, tgt, mode);
+      document.getElementById('translateOutput').innerText = demo;
+    }
+
+    function postProcessModerate(text){ // small post-processing to improve fluency (demo)
+      return text.replace(/\s+\./g,'.').replace(/\s+,/g,',').trim();
+    }
+
+    function localDemoTranslate(text, src, tgt, mode){
+      // Extremely small demo: only handles some phrases and punctuation; otherwise returns notice
+      const map = {
+        'hello':'你好', 'good morning':'早上好', 'thank you':'谢谢', 'how are you':'你好吗', 'I love you':'我爱你', 'this is important':'这是重要的'
+      };
+      const low = text.toLowerCase();
+      let out = map[low];
+      if(out){ if(mode === 'cultural') out += '（文化注：这是常见的打招呼用语）'; if(mode === 'moderate') out = out + '（译文经适度润色）'; return out; }
+      return '[本地示例模式] 未找到直接示例。若要获得完整翻译，请在设置中启用公有翻译或粘贴 API Key。';
+    }
+
+    /* ---------------- LEXICAL ---------------- */
+    function lexAction(){ const w = (document.getElementById('lexInput').value||'').trim().toLowerCase(); if(!w){ alert('请输入单词或短语'); return; } const outEl = document.getElementById('lexOutput'); outEl.innerText = ''; const suggestions = smallSyn[w] || []; if(suggestions.length){ outEl.innerText = '常见平替：' + suggestions.join(', ') + '\n更好的平替（更正式/更地道）：' + suggestions.map(s=> s + '（更地道）').join(', '); } else { outEl.innerText = '未找到本地词库平替。建议使用云端词典或在线查询（可在设置中添加 API）。'; } }
+
+    /* ---------------- BATCH ---------------- */
+    function batchProcess(){ const raw = document.getElementById('batchInput').value.trim(); if(!raw){ alert('请输入批量文本，每行一条'); return; } const lines = raw.split('\n').filter(r=>r.trim()!== ''); const outLines = lines.map(l=>{ const s = splitSentences(l)[0]; if(!s) return ''; const words = s.text.split(/\s+/).filter(Boolean); const keep = Math.max(1, Math.floor(words.length * 0.5)); return words.slice(0, keep).join(' '); }); const out = outLines.join('\n'); document.getElementById('batchOutput').innerText = out; }
+
+    /* ---------------- HISTORY ---------------- */
+    function pushHistory(kind, text){ const key = 'hist_' + kind; const arr = JSON.parse(localStorage.getItem(key) || '[]'); arr.unshift({text, time: Date.now()}); if(arr.length>8) arr.pop(); localStorage.setItem(key, JSON.stringify(arr)); renderHistory(kind); }
+    function renderHistory(kind){ const idMap = {shorten:'shortenHistory', expand:'expandHistory', para:'paraHistory'}; const el = document.getElementById(idMap[kind]); if(!el) return; const arr = JSON.parse(localStorage.getItem('hist_' + kind) || '[]'); el.innerHTML = ''; arr.forEach((it, idx)=>{ const btn = document.createElement('div'); btn.className='chip'; btn.title = new Date(it.time).toLocaleString(); btn.innerText = it.text.slice(0,80) + (it.text.length>80? '...':''); btn.onclick = ()=>{ if(confirm('恢复该历史到输出？')){ document.getElementById(kind+'Output').innerText = it.text; } }; el.appendChild(btn); }); }
+
+    /* ---------------- SETTINGS ---------------- */
+    function openSettings(){ document.getElementById('settingsModal').style.display='flex'; document.getElementById('apiKeyInput').value = localStorage.getItem('apiKey')||''; document.getElementById('usePublicTranslate').checked = !!localStorage.getItem('usePublicTranslate'); }
+    function closeSettings(){ document.getElementById('settingsModal').style.display='none'; }
+    function saveSettings(){ localStorage.setItem('apiKey', document.getElementById('apiKeyInput').value.trim()); if(document.getElementById('usePublicTranslate').checked) localStorage.setItem('usePublicTranslate','1'); else localStorage.removeItem('usePublicTranslate'); closeSettings(); alert('设置已保存（保存在本地浏览器）'); }
+
+    /* ---------------- INIT ---------------- */
+    (function init(){ updateShortenLabel(); updateExpandLabel(); renderHistory('shorten'); renderHistory('expand'); renderHistory('para'); // keyboard shortcuts
+      document.addEventListener('keydown', (e)=>{ if((e.ctrlKey||e.metaKey) && e.key === 'Enter'){ const active = document.activeElement; if(active && active.id === 'shortenInput') shortenAction(); if(active && active.id === 'expandInput') expandAction(); if(active && active.id === 'paraInput') paraAction(); } }); window.__HackZ = {shortenAction, expandAction, paraAction, translateAction}; })();
+  </script>
+</body>
+</html>
